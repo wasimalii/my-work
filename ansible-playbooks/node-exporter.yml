@@ -1,0 +1,60 @@
+#node-exporter
+---
+- hosts: node-exporter
+  become: yes
+  tasks:
+
+    - name: Download node_exporter tarball
+      become: true
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.linux-amd64.tar.gz"
+        dest: "/var/node_exporter.tar.gz"
+
+
+    - name: Extract node_exporter tarball
+      become: yes
+      unarchive:
+        src: "/var/node_exporter.tar.gz"
+        dest: "/var/"
+        remote_src: yes
+
+    - name: Change owner and group of file
+      become: true
+      file:
+        path: "/var/node_exporter-1.6.0.linux-amd64"
+        owner: root
+        group: root
+        recurse: yes
+
+    - name: Move node_exporter file
+      become: true
+      command: mv /var/node_exporter-1.6.0.linux-amd64/node_exporter /usr/local/bin/node_exporter
+
+
+    - name: Creating nodeexporter.servicefile
+      become: true
+      copy:
+        dest: /usr/lib/systemd/system/nodeexporter.service
+        content: |
+              [Unit]
+              Description=Node Exporter
+              After=network.target
+              [Service]
+              ExecStart=/usr/local/bin/node_exporter
+              Restart=on-failure
+              Type=simple
+              [Install]
+              WantedBy=multi-user.target
+
+    - name: Reloading daemon
+      become: true
+      systemd:
+        daemon_reload: yes
+
+
+    - name: Starting nodeexporter-service
+      become: true
+      systemd:
+        name: nodeexporter.service
+        state: started
+        enabled: yes
