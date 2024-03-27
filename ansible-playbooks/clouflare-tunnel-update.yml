@@ -1,0 +1,35 @@
+---
+- name: Cloudflare Updater
+  hosts: tunnel
+  become: true
+  become_method: sudo
+  gather_facts: true
+  vars:
+    - url_dow: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+    - deb_dir: /tmp/cloudflared.deb
+  tasks:
+    - name: Download the .deb package
+      get_url:
+        url: '{{ url_dow }}'
+        dest: '{{ deb_dir }}'  # Destination directory on the target machine
+        validate_certs: no  # Use 'yes' if SSL certificate validation is required
+
+    - name: Install the .deb package
+      become: yes  # Use 'yes' if root privileges are required
+      apt:
+        deb: '{{ deb_dir }}'
+        update_cache: yes  # Update package cache before installation
+      # when: ansible_distribution == 'Ubuntu'  
+
+    - name: Restart Cloudflare service
+      systemd:
+        name: cloudflared.service
+        state: restarted
+        enabled: true
+        daemon_reload: 'yes'
+    - name: cleaning
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /tmp/cloudflared.deb
