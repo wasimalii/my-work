@@ -1,0 +1,16 @@
+---
+- hosts: container-registry
+  name: my-playbook
+  gather_facts: true
+  tasks:
+    - name: build-in variable user
+      shell: "echo {{ ansible_default_ipv4.macaddress }}"
+      register: abc
+
+    - name: Echo the mac address of the remote-host
+      shell: "echo 'mac address is {{ abc.stdout }}'"
+      ignore_errors: yes
+
+    - name: Print local variable
+      debug:
+         msg: "Local name of {{ ansible_hostname }} is {{ ansible_local.myfile.basic.name}}"
