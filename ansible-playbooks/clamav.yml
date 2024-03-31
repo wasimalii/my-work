@@ -1,0 +1,270 @@
+---
+    - hosts: localhost
+      #remote_user: wasimali
+      become: yes
+      become_user: root
+      vars:
+
+      tasks:
+      - name: "Install list of packages"
+        action: apt pkg={{ item }} state=present
+        with_items:
+        - gcc
+        - make
+        - pkg-config
+        - python3
+        - python3-pip
+        - python3-pytest
+        - valgrind
+        - check
+        - libbz2-dev
+        - libcurl4-openssl-dev
+        - libjson-c-dev
+        - libmilter-dev
+        - libncurses5-dev
+        - libpcre2-dev
+        - libssl-dev
+        - libxml2-dev
+        - zlib1g-dev
+
+      - name: "installing through cmd"
+        shell:  |
+            python3 -m pip install --user cmake
+            apt-get install -y cargo rustc
+
+
+      - name: "downloading clamav.tar and extracting it"
+        shell: "wget https://www.clamav.net/downloads/production/clamav-0.105.0.tar.gz && wget https://www.clamav.net/downloads/production/clamav-0.105.0.tar.gz.sig"
+
+      - name: "extract tar"
+        shell: "tar -xvzf clamav-0.105.0.tar.gz"
+
+      - name: "chnage folder"
+        shell: "cd clamav-0.105.0"
+
+
+      - name: "Now performing cmake"
+        shell: "cd /home/wasimali/task2/clamav-0.105.0 && cmake ."
+        become: yes
+
+      - name: "Now performing build"
+        shell: "cd /home/wasimali/task2/clamav-0.105.0 && cmake --build ."
+        become: yes
+
+      - name: "Now performing ctest"
+        shell: "cd /home/wasimali/task2/clamav-0.105.0 && ctest"
+        become: yes
+        ignore_errors: yes
+
+      - name: "Now performing target install"
+        shell: "cd /home/wasimali/task2/clamav-0.105.0 && sudo cmake --build . --target install"
+        become: yes
+
+      - name: "creating clamd.conf"
+        shell: |
+            sudo bash -c 'cat << EOF > /usr/local/etc/clamd.conf
+            LocalSocket /var/run/clamav/clamd.socket
+            FixStaleSocket true
+            LocalSocketGroup clamav
+            LocalSocketMode 666
+            User clamav
+            TCPSocket 3310
+            ScanMail true
+            ScanArchive true
+            ArchiveBlockEncrypted false
+            MaxDirectoryRecursion 15
+            FollowDirectorySymlinks false
+            FollowFileSymlinks false
+            ReadTimeout 180
+            MaxThreads 12
+            MaxConnectionQueueLength 15
+            LogSyslog false
+            LogRotate true
+            LogFacility LOG_LOCAL6
+            LogClean false
+            LogVerbose false
+            PreludeEnable no
+            PreludeAnalyzerName ClamAV
+            DatabaseDirectory /var/lib/clamav
+            OfficialDatabaseOnly false
+            SelfCheck 3600
+            Foreground false
+            Debug false
+            ScanPE true
+            MaxEmbeddedPE 10M
+            ScanOLE2 true
+            ScanPDF true
+            ScanHTML true
+            MaxHTMLNormalize 10M
+            MaxHTMLNoTags 2M
+            MaxScriptNormalize 5M
+            MaxZipTypeRcg 1M
+            ScanSWF true
+            ExitOnOOM false
+            LeaveTemporaryFiles false
+            AlgorithmicDetection true
+            ScanELF true
+            IdleTimeout 30
+            CrossFilesystems true
+            PhishingSignatures true
+            PhishingScanURLs true
+            PhishingAlwaysBlockSSLMismatch false
+            PhishingAlwaysBlockCloak false
+            PartitionIntersection false
+            DetectPUA false
+            ScanPartialMessages false
+            HeuristicScanPrecedence false
+            StructuredDataDetection false
+            CommandReadTimeout 30
+            SendBufTimeout 200
+            MaxQueue 100
+            ExtendedDetectionInfo true
+            OLE2BlockMacros false
+            AllowAllMatchScan true
+            ForceToDisk false
+            DisableCertCheck false
+            DisableCache false
+            MaxScanTime 120000
+            MaxScanSize 100M
+            MaxFileSize 25M
+            MaxRecursion 16
+            MaxFiles 10000
+            MaxPartitions 50
+            MaxIconsPE 100
+            PCREMatchLimit 10000
+            PCRERecMatchLimit 5000
+            PCREMaxFileSize 25M
+            ScanXMLDOCS true
+            ScanHWP3 true
+            MaxRecHWP3 16
+            StreamMaxLength 25M
+            LogFile /var/log/clamav/clamav.log
+            LogTime true
+            LogFileUnlock false
+            LogFileMaxSize 0
+            Bytecode true
+            BytecodeSecurity TrustSigned
+            BytecodeTimeout 60000
+            OnAccessMaxFileSize 5M
+            EOF'
+
+      - name: "creating freshclam.conf"
+        shell: |
+              sudo bash -c 'cat << EOF > /usr/local/etc/freshclam.conf
+              DatabaseOwner clamav
+              UpdateLogFile /var/log/clamav/freshclam.log
+              LogVerbose false
+              LogSyslog false
+              LogFacility LOG_LOCAL6
+              LogFileMaxSize 0
+              LogRotate true
+              LogTime true
+              Foreground false
+              Debug false
+              MaxAttempts 5
+              DatabaseDirectory /var/lib/clamav
+              DNSDatabaseInfo current.cvd.clamav.net
+              ConnectTimeout 30
+              ReceiveTimeout 0
+              TestDatabases yes
+              ScriptedUpdates yes
+              CompressLocalDatabase no
+              Bytecode true
+              NotifyClamd /usr/local/etc/clamd.conf
+              Checks 24
+              DatabaseMirror db.local.clamav.net
+              DatabaseMirror database.clamav.net
+              EOF'
+
+      - name: "user"
+        shell: |
+           sudo groupadd clamav
+           sudo useradd -g clamav -s /bin/false -c "Clam Antivirus" clamav
+
+      - name: "creating dir"
+        shell: "sudo mkdir /var/log/clamav/ /var/lib/clamav /var/run/clamav/"
+        become: yes
+        ignore_errors: yes
+
+      - name: "crteatind directory"
+        shell: "sudo chown clamav:clamav /var/log/clamav/ /var/lib/clamav /var/run/clamav/"
+        become: yes
+
+      - name: "files"
+        shell: |
+            sudo touch /var/run/clamav/clamd.socket
+            sudo touch /var/log/clamav/clamav.log
+            sudo touch /var/lib/clamav/freshclam.log
+
+      - name: "system file"
+        shell: |
+            sudo bash -c 'cat << EOF > /etc/systemd/system/clamav-freshclam.service
+            [Unit]
+            Description=ClamAV virus database updater
+            Documentation=man:freshclam(1) man:freshclam.conf(5) https://www.clamav.net/documents
+            # If user wants it run from cron, dont start the daemon.
+            ConditionPathExists=!/etc/cron.d/clamav-freshclam
+            Wants=network-online.target
+            After=network-online.target
+
+            [Service]
+            User=clamav
+            Group=clamav
+            ExecStart=/usr/local/etc/freshclam -d --foreground=true
+            StandardOutput=syslog
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF'
+
+      - name: "system freshclam"
+        shell: |
+            sudo bash -c 'cat << EOF > /etc/systemd/system/clamav-daemon.service
+            [Unit]
+            Description=Clam AntiVirus userspace daemon
+            Documentation=man:clamd(8) man:clamd.conf(5) https://www.clamav.net/documents/
+            # Check for database existence
+            ConditionPathExistsGlob=/var/lib/clamav/main.{c[vl]d,inc}
+            ConditionPathExistsGlob=/var/lib/clamav/daily.{c[vl]d,inc}
+
+            [Service]
+            User=clamav
+            Group=clamav
+            ExecStart=/usr/local/etc/clamd --foreground=true
+            # Reload the database
+            ExecReload=/bin/kill -USR2 $MAINPID
+            StandardOutput=syslog
+            TimeoutStartSec=420
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF'
+
+      - name: "get"
+        shell: "cd /var/lib/clamav/ && wget https://www.danami.com/hotfix/main.cvd"
+
+      - name: "set"
+        shell: "cd /var/lib/clamav/ && wget https://www.danami.com/hotfix/daily.cld"
+
+      - name: "star"
+        shell: |
+            chown clamav:clamav /var/lib/clamav/main.cvd
+            chown clamav:clamav /var/lib/clamav/daily.cld
+            chown clamav:clamav /var/run/clamav/clamd.socket
+            sudo chmod 777 /var/run/clamav/clamd.socket
+
+
+      - name: "service"
+        shell: |
+              sudo systemctl enable clamav-freshclam.service
+              sudo systemctl enable clamav-daemon.service
+              sudo systemctl start clamav-freshclam.service
+              sudo systemctl start clamav-daemon.service
+
+
+
+      - name: "fresh"
+        shell: "cd /home/wasimali/task2/ && sudo freshclam"
+
+      - name: "scan"
+        shell: "cd /home/wasimali/ && clamscan -r -z -i --bell --file-list=/home/wasimali/f1.txt"
